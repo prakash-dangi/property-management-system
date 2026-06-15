@@ -14,7 +14,8 @@ const register = async (req, res) => {
         const {
             name,
             email,
-            password
+            password,
+            phone
         } = req.body;
 
         const existingUser = await User.findOne({ email });
@@ -30,7 +31,8 @@ const register = async (req, res) => {
         const user = await User.create({
             name,
             email,
-            password: hashedPassword
+            password: hashedPassword,
+            phone
         });
 
         const accessToken = generateAccessToken(user._id);
@@ -65,7 +67,7 @@ const login = async (req, res) => {
             password
         } = req.body;
 
-        const user = User.findOne({ email }).select("+password");
+        const user = await User.findOne({ email }).select("+password");
 
         if (!user) {
             return res.status(400).json({
@@ -111,6 +113,12 @@ const login = async (req, res) => {
     }
 };
 
+const logout = (req, res) => {
+    res.clearCookie("refreshToken");
+
+    res.json({message:"Logged out"});
+};
+
 const getMe = async (req, res) => {
     const user = await User.findById(req.user.id);
 
@@ -147,6 +155,7 @@ const refresh = async (req, res) => {
 module.exports = {
     register,
     login,
+    logout,
     getMe,
     refresh
 };
