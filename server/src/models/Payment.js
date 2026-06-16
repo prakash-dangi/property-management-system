@@ -29,7 +29,7 @@ const paymentSchema = new mongoose.Schema(
 
         paidAt: Date,
 
-        recieptUrl: {
+        receiptUrl: {
             type: String,
             default: null
         }

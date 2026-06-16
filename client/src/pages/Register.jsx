@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "../utils/registerSchema";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import api from "../api/axios";
 
 // currently owner registeration only
@@ -20,10 +21,11 @@ export default function Register() {
 	const onSubmit = async (data) => {
 		try {
 			await api.post("/api/auth/register", data);
+			toast.success("Register successful");
 
 			navigate("/login");
 		} catch (error) {
-    		alert(
+    		toast.error(
         		error.response?.data?.message || "Registration failed"
     		);
 		}

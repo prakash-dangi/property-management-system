@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema } from "../utils/loginSchema";
 import useAuthStore from "../store/authStore";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 // currently owner login only
 
@@ -24,10 +25,11 @@ export default function Login() {
     const onSubmit = async (data) => {
         try {
             await login(data);
+            toast.success("Login successful");
 
             navigate("/dashboard");
         } catch {
-            alert("Login failed");
+            toast.error("Login failed");
         }
     };
 

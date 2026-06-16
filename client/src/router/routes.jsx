@@ -26,11 +26,12 @@ export default function AppRoutes() {
 						<ProtectedRoute>
 							<RoleRoute roles={["owner", "staff"]}>
 								<AdminLayout />
-								<Dashboard />
 							</RoleRoute>
 						</ProtectedRoute>
 					}
-				/>
+				>
+					<Route index element={<Dashboard />} />
+				</Route>
 
 				<Route
 					path="*"
