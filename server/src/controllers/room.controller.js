@@ -1,18 +1,35 @@
 const Room = require("../models/Room");
 const Tenant = require("../models/Tenant");
+const Hostel = require("../models/Hostel");
 const AppError = require("../utils/AppError");
 
-// Create Room
-// Only owner/staff can call this
-// hostel is always taken from req.user.hostel (never from req.body)
-// status is forced to "available" on creation
+// Confirms the user owns the hostel in the URL
+// Returns the hostel document if valid, throws AppError if not.
+const verifyHostelOwnership = async (hostelId, userId) => {
+	const hostel = await Hostel.findOne({
+		_id: hostelId,
+		owner: userId
+	});
 
+	if (!hostel) {
+		throw new AppError("Hostel not found or you do not own this hostel", 404);
+	}
+
+	return hostel;
+};
+
+// Create Room
+// POST /api/hostels/:hostelId/rooms
+// Only owner/staff can call this
+// status is forced to "available" on creation
 const createRoom = async (req, res, next) => {
 	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
 		const room = await Room.create({
 			...req.body,
-			hostel: req.user.hostel, // multi-tenancy: always from token
-			status: "available" // always start available
+			hostel: req.params.hostelId, // from URL
+			status: "available"
 		});
 
 		res.status(201).json({
@@ -25,23 +42,22 @@ const createRoom = async (req, res, next) => {
 };
 
 //GET Rooms
+//GET /api/hostels/:hostelId/rooms
 //Supports: ?floor=2 &type=double &status=available
-//Always scoped to req.user.hostel
 
 const getRooms = async (req, res, next) => {
 	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
 		const filter = {
-			hostel: req.user.hostel // multi-tenancy guard
+			hostel: req.params.hostelId
 		};
 
-		if (req.query.floor)
-			filter.floor = req.query.floor;
+		if (req.query.floor) filter.floor = req.query.floor;
 
-		if (req.query.type)
-			filter.type = req.query.type;
+		if (req.query.type) filter.type = req.query.type;
 
-		if (req.query.status)
-			filter.status = req.query.status;
+		if (req.query.status) filter.status = req.query.status;
 
 		const rooms = await Room.find(filter);
 
@@ -55,14 +71,15 @@ const getRooms = async (req, res, next) => {
 	}
 };
 
-//GET Room by ID
-//scoped by hostel. Populated active tenants
-
+// GET Room by ID
+// GET /api/hostels/:hostelId/rooms/:id
 const getRoomById = async (req, res, next) => {
 	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
 		const room = await Room.findOne({
 			_id: req.params.id,
-			hostel: req.user.hostel
+			hostel: req.params.hostelId
 		});
 
 		if (!room) {
@@ -70,7 +87,7 @@ const getRoomById = async (req, res, next) => {
 		}
 
 		const tenants = await Tenant.find({
-			room: room_id,
+			room: room._id,
 			status: "active"
 		}).populate("user", "name email phone");
 
@@ -85,14 +102,16 @@ const getRoomById = async (req, res, next) => {
 };
 
 // UPDATE Room
+// PUT /api/hostls/"hostelId/rooms/:id
 // Allowed fields: amenities, rent, type, status
 // Status transitions are guarded by a state machine
-
 const updateRoom = async (req, res, next) => {
 	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
 		const room = await Room.findOne({
 			_id: req.params.id,
-			hostel: req.user.hostel
+			hostel: req.params.hostelId
 		});
 
 		if (!room) {
@@ -132,14 +151,16 @@ const updateRoom = async (req, res, next) => {
 	}
 };
 
-//DELETE Room
-//Only if: status === "available" AND no active tenants.
-
+// DELETE Room
+// DELETE /api/hostels/:hostelId/rooms/:id
+// Only if: status === "available" AND no active tenants.
 const deleteRoom = async (req, res, next) => {
 	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
 		const room = await Room.findOne({
 			_id: req.params.id,
-			hostel: req.user.hostel
+			hostel: req.params.hostelId
 		});
 
 		if (!room) {
@@ -155,7 +176,7 @@ const deleteRoom = async (req, res, next) => {
 			status: "active"
 		});
 
-		if (activeTenants) {
+		if (activeTenant) {
 			throw new AppError("Room still has active tenants", 400);
 		}
 
@@ -171,16 +192,18 @@ const deleteRoom = async (req, res, next) => {
 };
 
 // GET Room stats
+// GET /api/hostels/:hostelId/rooms/stats
 // returns a dashboard summary of this hostel
-
 const getRoomStats = async (req, res, next) => {
 	try {
-		const hostel = req.user.hostel;
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
 
-		const total = await Room.countDocuments({ hostel });
-		const occupied = await Room.countDocuments({ hostel, status: "occupied"});
-		const available = await Room.countDocuments({ hostel, status: "available"});
-		const maintenance = await Room.countDocuments({ hostel, status: "maintenance"});
+		const hostelId = req.params.hostelId;
+
+		const total       = await Room.countDocuments({ hostel: hostelId });
+		const occupied    = await Room.countDocuments({ hostel: hostelId, status: "occupied"});
+		const available   = await Room.countDocuments({ hostel: hostelId, status: "available"});
+		const maintenance = await Room.countDocuments({ hostel: hostelId, status: "maintenance"});
 
 		res.json({
 			success: true,

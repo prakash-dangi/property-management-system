@@ -27,11 +27,6 @@ const userSchema = new mongoose.Schema(
             default: "tenant"
         },
 
-        hostel: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Hostel"
-        },
-
         phone: String, 
         
         avatar: String,
