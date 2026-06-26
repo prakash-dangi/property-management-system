@@ -6,7 +6,7 @@ export default function AuthInitializer() {
 
 	useEffect(() => {
 		initializeAuth();
-	}, []);
+	}, [initializeAuth]);
 
 	return null;
 }

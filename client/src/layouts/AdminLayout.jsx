@@ -1,5 +1,6 @@
 import { Link, Outlet } from "react-router-dom";
 import useAuthStore from "../store/authStore";
+import useRoomStore from "../store/roomStore";
 import ThemeToggle from "../components/ThemeToggle";
 
 export default function AdminLayout() {
@@ -13,6 +14,8 @@ export default function AdminLayout() {
 		useAuthStore(
 			state => state.logout
 		);
+
+	const selectedHostel = useRoomStore(state => state.selectedHostel);
 
 	return (
 
@@ -48,11 +51,11 @@ export default function AdminLayout() {
 						Dashboard
 					</Link>
 
-					<Link to="/rooms">
+					<Link to="/dashboard/rooms">
 						Rooms
 					</Link>
 
-					<Link to="/tenants">
+					<Link to="/dashboard/tenants">
 						Tenants
 					</Link>
 
@@ -94,8 +97,8 @@ export default function AdminLayout() {
 
 					<div>
 
-						<h3>
-							Hostel 1
+						<h3 className="text-sm font-medium text-gray-600">
+							{selectedHostel ? selectedHostel.name : "Select a hostel"}
 						</h3>
 
 					</div>

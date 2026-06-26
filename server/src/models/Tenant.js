@@ -5,7 +5,8 @@ const tenantSchema = new mongoose.Schema(
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: true
+            required: true,
+            unique: true
         },
 
         hostel: {
@@ -20,27 +21,48 @@ const tenantSchema = new mongoose.Schema(
             required: true
         },
 
-        bedNumber: String,
+        bedNumber: {
+            type: Number
+        },
 
-        checkInDate: Date,
+        phone: String,
 
-        checkOutDate: Date,
+        emergencyContact: {
+            name: String,
+            relation: String,
+            phone: String
+        },
 
-        idProofType: String,
-
-        idProofUrl: String,
-
-        emergencyContact: String,
-
+        joiningDate: {
+            type: Date,
+            default: Date.now
+        },
+        
         status: {
-            type: String,
-            enum: ["active", "vacated"],
+            type: String, 
+            enum: ["active", "inactive", "left"],
             default: "active"
-        }
+        },
+
+        idProof: {
+            url: String,
+            publicId: String,
+            uploadedAt: Date
+        },
+        
+        notes: String
     },
 
     {
         timestamps: true
+    }
+);
+
+tenantSchema.index({ hostel: 1, user: 1 }, { unique: true });
+tenantSchema.index({ room: 1, bedNumber: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { status: "active" }
     }
 );
 

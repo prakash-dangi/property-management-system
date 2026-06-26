@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser");
 const authRoutes = require("./src/routes/auth.routes");
 const roomRoutes = require("./src/routes/room.routes");
 const hostelRoutes = require("./src/routes/hostel.routes");
+const tenantRoutes = require("./src/routes/tenant.routes");
 
 const errorMiddleware = require("./src/middleware/error.middleware");
 
@@ -16,13 +17,14 @@ connect();
 
 const app = express();
 
-app.use(cors({origin: "http://localhost:5173", credentials: true}));
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/hostels", hostelRoutes);
 app.use("/api/hostels/:hostelId/rooms", roomRoutes);
+app.use("/api/hostels/:hostelId/tenants", tenantRoutes);
 
 app.get("/", (req, res) => {
     res.send("Server Running");

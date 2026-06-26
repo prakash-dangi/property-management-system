@@ -102,7 +102,7 @@ const getRoomById = async (req, res, next) => {
 };
 
 // UPDATE Room
-// PUT /api/hostls/"hostelId/rooms/:id
+// PUT /api/hostels/:hostelId/rooms/:id
 // Allowed fields: amenities, rent, type, status
 // Status transitions are guarded by a state machine
 const updateRoom = async (req, res, next) => {
@@ -217,11 +217,59 @@ const getRoomStats = async (req, res, next) => {
 	}
 };
 
+// GET /api/hostels/:hostelId/rooms/:id/availability
+// Returns capacity, how many beds are taken, which beds are free
+const getRoomAvailability = async (req, res, next) => {
+	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		const room = await Room.findOne({
+			_id: req.params.id,
+			hostel: req.params.hostelId
+		});
+
+		if (!room) {
+			throw new AppError("Room not found", 404);
+		}
+
+		// Count and get bed numbers of active tenants
+		const activeTenants = await Tenant.find({
+			room: room._id,
+			status: "active"
+		}).select("bedNumber user").populate("user", "name");
+
+		const takenBeds = activeTenants.map(t => t.bedNumber);
+
+		// Build a list of all available beds
+		const availableBeds = [];
+		for (let i = 1; i <= room.capacity; i++) {
+			if (!takenBeds.includes(i)) {
+				availableBeds.push(i);
+			}
+		}
+
+		res.json({
+			success: true,
+			roomNumber: room.roomNumber,
+			capacity: room.capacity,
+			occupied: takenBeds.length,
+			availableBeds,
+			// Useful for showing which tenant is in which bed
+			bedAssignments: activeTenants.map(t => ({
+				bedNumber: t.bedNumber,
+				tenantName: t.user?.name
+			}))
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
 module.exports = {
 	createRoom,
 	getRooms,
 	getRoomById,
 	updateRoom,
 	deleteRoom,
-	getRoomStats
+	getRoomStats,
+	getRoomAvailability
 };

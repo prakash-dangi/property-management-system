@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
+        },
+
+        mustChangePassword: {
+            type: Boolean,
+            default: false
         }
     },
     {
@@ -44,8 +49,8 @@ const userSchema = new mongoose.Schema(
 userSchema.set("toJSON", {
     transform: (doc, ret) => {
         delete ret.password;
-        delete ret._id;
         delete ret.__v;
+        delete ret.mustChangePassword;
         
         return ret;
     }

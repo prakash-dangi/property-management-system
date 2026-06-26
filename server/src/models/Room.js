@@ -22,10 +22,12 @@ const roomSchema = new mongoose.Schema(
 
         capacity: Number,
 
-        occupied: {
-            type: Number,
-            default: 0,
-        },
+        tenants: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Tenant"
+            }
+        ],
 
         rent: Number,
 
@@ -44,13 +46,13 @@ const roomSchema = new mongoose.Schema(
 );
 
 roomSchema.index(
-	{
-		hostel: 1,
-		roomNumber: 1
-	},
-	{
-		unique: true
-	}
+    {
+        hostel: 1,
+        roomNumber: 1
+    },
+    {
+        unique: true
+    }
 );
 
 module.exports = mongoose.model("Room", roomSchema);

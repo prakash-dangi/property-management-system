@@ -32,7 +32,8 @@ const register = async (req, res) => {
             name,
             email,
             password: hashedPassword,
-            phone
+            phone,
+            role: "owner"  // Self-registered users are owners; tenants are created by owners
         });
 
         const accessToken = generateAccessToken(user._id);
@@ -116,11 +117,11 @@ const login = async (req, res) => {
 const logout = (req, res) => {
     res.clearCookie("refreshToken");
 
-    res.json({message:"Logged out"});
+    res.json({ message: "Logged out" });
 };
 
 const getMe = async (req, res) => {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
 
     res.json(user);
 };
@@ -128,7 +129,7 @@ const getMe = async (req, res) => {
 const refresh = async (req, res) => {
     try {
         const token = req.cookies.refreshToken;
-        
+
         if (!token) {
             return res.status(401).json({
                 message: "No refresh token"
