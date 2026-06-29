@@ -8,7 +8,8 @@ const {
 	updateRoom,
 	deleteRoom,
 	getRoomStats,
-	getRoomAvailability
+	getRoomAvailability,
+	getRoomHistory
  } = require("../controllers/room.controller");
 
 const {
@@ -45,6 +46,14 @@ router.get(
 	"/:id/availability",
 	protect,
 	getRoomAvailability
+);
+
+// GET /api/hostels/:hostelId/rooms/:id/history
+router.get(
+	"/:id/history",
+	protect,
+	authorize("owner", "staff"),
+	getRoomHistory
 );
 
 // GET /api/hostels/:hostelId/rooms/:id

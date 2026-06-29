@@ -27,7 +27,8 @@ export default function Login() {
             await login(data);
             toast.success("Login successful");
 
-            navigate("/dashboard");
+            const { user } = useAuthStore.getState();
+            navigate(user.role === "tenant" ? "/portal" : "/dashboard", { replace: true });
         } catch {
             toast.error("Login failed");
         }
@@ -39,10 +40,10 @@ export default function Login() {
             <h1>Login</h1>
 
             <form onSubmit={handleSubmit(onSubmit)}>
-                <input placeholder="Email" {...register("email")}/>
+                <input placeholder="Email" {...register("email")} />
                 <p>{errors.email?.message}</p>
 
-                <input type="password" placeholder="Password" {...register("password")}/>
+                <input type="password" placeholder="Password" {...register("password")} />
                 <p>{errors.password?.message}</p>
 
                 <button type="submit">Login</button>

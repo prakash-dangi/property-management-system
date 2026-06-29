@@ -39,3 +39,27 @@ export const fetchAvailableRooms = async (hostelId) => {
 	const res = await api.get(`/api/hostels/${hostelId}/rooms?status=available`);
 	return res.data.rooms;
 };
+
+// Get pre-checkout summary (days stayed, financials, timeline data)
+// Called before the modal opens - makes the modal instant
+export const fetchCheckInSummary = async (hostelId, tenantId) => {
+	const res = await api.get(
+		`/api/hostels/${hostelId}/tenants/${tenantId}/checkin-summary`
+	);
+	return res.data; // { success, tenant, summary }
+};
+
+// Execute checkout
+// force=true bypass pending dues (owner privilate)
+export const checkOutTenant = async (hostelId, tenantId, force = false) => {
+	const res = await api.put(
+		`/api/hostels/${hostelId}/tenants/${tenantId}/checkout${force ? "?force=true" : ""}`
+	);
+	return res.data; // { success, summary, tenant, room }
+};
+
+// Get room history (past vacated tenants)
+export const fetchRoomHistory = async (hostelId, roomId) => {
+	const res = await api.get(`/api/hostels/${hostelId}/rooms/${roomId}/history`);
+	return res.data; // { success, const, room, history }
+};

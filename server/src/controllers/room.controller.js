@@ -264,6 +264,50 @@ const getRoomAvailability = async (req, res, next) => {
 	}
 };
 
+const getRoomHistory = async (req, res, next) => {
+	try {
+		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+
+		const room = await Room.findOne({
+			_id: req.params.id,
+			hostel: req.params.hostelId
+		});
+
+		if (!room) {
+			throw new AppError("Room not found", 404);
+		}
+
+		// All past tenants (vacated) sorted most recent first
+		const history = await Tenant.find({
+			room: room._id,
+			status: "vacated"
+		})
+			.populate("user", "name email phone")
+			.select("user bedNumber checkInDate checkOutDate daysStayed notes")
+			.sort({ checkOutDate: -1 });
+
+		// Enrich each record with days stayed (computed, not stored)
+		const enriched = history.map(t => {
+			const days = t.checkOutDate && t.checkInDate
+				? Math.ceil((t.checkOutDate - t.checkInDate) / (1000 * 60 * 60 * 24))
+				: null;
+			return {
+				...t.toObject(),
+				daysStayed: days
+			};
+		});
+
+		res.json({
+			success: true,
+			count: enriched.length,
+			room: { _id: room._id, roomNumber: room.roomNumber, type: room.type },
+			history: enriched
+		});
+	} catch (error) {
+		next(error);
+	}
+};
+
 module.exports = {
 	createRoom,
 	getRooms,
@@ -271,5 +315,7 @@ module.exports = {
 	updateRoom,
 	deleteRoom,
 	getRoomStats,
-	getRoomAvailability
+	getRoomAvailability,
+	getRoomHistory
+
 };

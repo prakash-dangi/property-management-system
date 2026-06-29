@@ -2,6 +2,8 @@ const Tenant = require("../models/Tenant");
 const User = require("../models/User");
 const Room = require("../models/Room");
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
+const getTenantFinancialSummary = require("../utils/tenantSummary");
 const getAvailableBed = require("../utils/bedAllocation");
 const generateTempPassword = require("../utils/generateTempPassword");
 const sendTenantCredentials = require("../utils/sendTenantCredentials");
@@ -166,14 +168,14 @@ exports.updateTenant = async (req, res, next) => {
 		if (emergencyContact) tenant.emergencyContact = emergencyContact;
 		if (notes !== undefined) tenant.notes = notes;
 
-		// Handle status change 
+		// Handle status change
 		if (status && status !== tenant.status) {
 			const oldStatus = tenant.status;
 			tenant.status = status;
 
 			// free bed if tenant is leaving or becoming inactive
 			// recalculate room status
-			if (status === "left" || status === "inactive") {
+			if (status === "vacated" || status === "inactive") {
 				// Fetch room to get capacity for the status comparison
 				const room = await Room.findById(tenant.room);
 				const remainingActive = await Tenant.countDocuments({
@@ -188,7 +190,7 @@ exports.updateTenant = async (req, res, next) => {
 				});
 
 				// Remove from room's tenant array if leaving permanently
-				if (status === "left") {
+				if (status === "vacated") {
 					await Room.findByIdAndUpdate(tenant.room, {
 						$pull: { tenants: tenant._id }
 					});
@@ -207,7 +209,7 @@ exports.updateTenant = async (req, res, next) => {
 					return res.status(400).json({ success: false, message: "Room is now full, cannot reactivate" });
 				}
 
-				// Re-asign a bed (their old bed may be taken) 
+				// Re-asign a bed (their old bed may be taken)
 				const newBed = await getAvailableBed(tenant.room, room.capacity);
 				if (!newBed) {
 					return res.status(400).json({ success: false, message: "No bed available" });
@@ -291,6 +293,151 @@ exports.uploadIdProof = async (req, res, next) => {
 		await tenant.save();
 
 		res.json({ success: true, message: "ID proof uploaded successfully", idProof: tenant.idProof });
+	} catch (error) {
+		next(error);
+	}
+};
+
+exports.checkOutTenant = async (req, res, next) => {
+	const session = await mongoose.startSession();
+	try {
+		session.startTransaction();
+
+		const { hostelId, id } = req.params;
+
+		// 1. Find tenant - scoped to this hostel for security
+		const tenant = await Tenant.findOne({ _id: id, hostel: hostelId }).session(session);
+		if (!tenant) {
+			await session.abortTransaction();
+			return res.status(404).json({ success: false, message: "Tenant not found"});
+		}
+
+		// 2. Must be active
+		if (tenant.status !== "active") {
+			await session.abortTransaction();
+			return res.status(400).json({
+				success: false,
+				message: `Tenant is already ${tenant.status}`
+			});
+		}
+
+		// 3. Financial check - currently a stub, will gate on real dues later
+		const financials = await getTenantFinancialSummary(tenant._id);
+		const force = req.query.force === "true";
+
+		if (financials.pendingAmount > 0 && !force) {
+			await session.abortTransaction();
+			return res.status(400).json({
+				success: false,
+				message: "Tenant has pending dues. Use ?force=true to override.",
+				pendingAmount: financials.pendingAmount
+			});
+		}
+
+		// 4. Fetch room inside the transaction
+		const room = await Room.findById(tenant.room).session(session);
+		if (!room) {
+			await session.abortTransaction();
+			return res.status(404).json({ success: false, message: "Room not found"});
+		}
+
+		// 5. Mark tenant as vacated
+		const checkOutDate = new Date();
+		tenant.status = "vacated";
+		tenant.checkOutDate = checkOutDate;
+		await tenant.save({ session });
+
+		// 6. Recount active tenants - the source of truth approach
+		// (we never trust a cached counter)
+		const remainingActive = await Tenant.countDocuments({
+			room: room._id,
+			status: "active"
+		}).session(session);
+
+		// 7. Remove from room's tenants reference array + update  room status
+		room.status = remainingActive >= room.capacity ? "occupied" : "available";
+		// Remove this tenant from the room's tenants array
+		room.tenants = room.tenants.filter(
+			tId  => tId.toString() !== tenant._id.toString()
+		);
+		await room.save({ session });
+
+		// 8. Commit both writes automatically
+		await session.commitTransaction();
+
+		// 9. Calculate stay duration for the response summary
+		const daysStayed = Math.ceil(
+			(checkOutDate - tenant.checkInDate) / (1000*60*60*24)
+		);
+
+		res.json({
+			success: true,
+			message: `Tenant checked out successfully`,
+			summary: {
+				daysStayed,
+				checkInDate: tenant.checkInDate,
+				checkOutDate,
+				bedNumber: tenant.bedNumber,
+				pendingAmount: financials.pendingAmount
+			},
+			tenant,
+			room
+		});
+	} catch (error) {
+		// Always abort on any error to prevent partial writes
+		try { await session.abortTransaction(); } catch (_) {}
+		next(error);
+	} finally { session.endSession()
+	}
+};
+
+exports.getCheckInSummary = async (req, res, next) => {
+	try {
+		const { hostelId, id } = req.params;
+
+		const tenant = await Tenant.findOne({ _id: id, hostel: hostelId })
+			.populate("user", "name email phone")
+			.populate("room", "roomNumber type rent floor");
+
+		if (!tenant) {
+			return res.status(404).json({ success: false, message: "Tenant not found" });
+		}
+
+		const financials = await getTenantFinancialSummary(tenant._id);
+
+		// Use checkOutDate if already vacated; otherwise use now for a preview
+		const endDate = tenant.checkOutDate || new Date();
+		const daysStayed = Math.ceil(
+				(endDate - tenant.checkInDate) / (1000 * 60 * 60 * 24)
+		);
+
+		// Expected checkout date is either explicitly set or estimated as 30 days from check in
+		const expectedCheckOutDate = tenant.expectedCheckOutDate || new Date(tenant.checkInDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+		res.json({
+			success: true,
+			tenant: {
+				_id: tenant._id,
+				user: tenant.user,
+				room: tenant.room,
+				bedNumber: tenant.bedNumber,
+				status: tenant.status,
+				checkInDate: tenant.checkInDate,
+				checkOutDate: tenant.checkOutDate,
+				expectedCheckOutDate
+			},
+
+			summary: {
+				daysStayed,
+				totalPaid: financials.totalPaid,
+				totalInvoiced: financials.totalInvoiced,
+				pendingAmount: financials.pendingAmount,
+				// Convenience: estimated total rent based on days * monthly rent
+				estimatedRent: tenant.room?.rent
+					? Math.round((tenant.room.rent / 30) * daysStayed)
+					: null
+			}
+		});
 	} catch (error) {
 		next(error);
 	}

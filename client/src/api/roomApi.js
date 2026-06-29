@@ -27,6 +27,12 @@ export const fetchRoomStats = async (hostelId) => {
 	return res.data;
 };
 
+// --- Fetch room availability ---
+export const fetchRoomAvailability = async (hostelId, roomId) => {
+    const res = await api.get(`/api/hostels/${hostelId}/rooms/${roomId}/availability`);
+    return res.data; // { capacity, occupied, availableBeds, bedAssignments }
+};
+
 // --- Create a new room ---
 export const createRoom = async (hostelId, data) => {
 	const res = await api.post(`/api/hostels/${hostelId}/rooms`, data);

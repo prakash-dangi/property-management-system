@@ -81,7 +81,7 @@ export default function TenantList() {
                             <option value="">All Statuses</option>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
-                            <option value="left">Left</option>
+                            <option value="vacated">Vacated</option>
                         </select>
                         {(search || status) && (
                             <button

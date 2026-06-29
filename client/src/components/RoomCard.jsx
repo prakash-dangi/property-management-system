@@ -1,9 +1,12 @@
 import StatusBadge from "./StatusBadge";
+import { useNavigate } from "react-router-dom";
 
 // RoomCard is a pure display component
 // onEdit(room) and onDelete(room) are callbacks from the parent
 
 export default function RoomCard({ room, onEdit, onDelete }) {
+	const navigate = useNavigate();
+
 	return (
 		<div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-4">
 			{/* Header: room number + status */}
@@ -43,6 +46,8 @@ export default function RoomCard({ room, onEdit, onDelete }) {
 			</div>
 
 			<div className="flex gap-2 mt-auto">
+				<button onClick={() => navigate(`/dashboard/rooms/${room._id}`)} className="flex-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors">Details</button>
+				
 				<button onClick={() => onEdit(room)} className="flex-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors">Edit</button>
 
 				<button onClick={() => onDelete(room)} className="flex-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors">Delete</button>
