@@ -21,6 +21,13 @@ const hostelSchema = new mongoose.Schema(
 
         logo: String,
 
+        staff: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User"
+            }
+        ],
+
         totalRooms: {
             type: Number,
             default: 0
@@ -38,20 +45,20 @@ const hostelSchema = new mongoose.Schema(
             type: Boolean,
             default: true
         }
-    }, 
+    },
     {
         timestamps: true
     }
 );
 
 hostelSchema.index(
-	{
-		owner: 1,
-		name: 1
-	},
-	{
-		unique: true
-	}
+    {
+        owner: 1,
+        name: 1
+    },
+    {
+        unique: true
+    }
 );
 
 module.exports = mongoose.model("Hostel", hostelSchema);

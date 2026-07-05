@@ -16,4 +16,6 @@ router.get("/me", tenantPortalController.getTenantProfile);
 // Room details + bed grid + roommate names (no private info)
 router.get("/my-room", tenantPortalController.getMyRoom);
 
+router.get("/my-invoices", tenantPortalController.getMyInvoices);
+
 module.exports = router;

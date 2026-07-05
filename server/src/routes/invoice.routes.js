@@ -24,6 +24,21 @@ router.post(
     invoiceController.markOverdueInvoices
 );
 
+// GET /api/hostels/:hostelId/invoices/dues/summary
+// Must be first — "dues/summary" would be matched as /:id = "dues" otherwise
+router.get(
+    "/dues/summary",
+    authorize("owner", "staff"),
+    invoiceController.getDuesSummary
+);
+
+// GET /api/hostels/:hostelId/invoices/dues
+router.get(
+    "/dues",
+    authorize("owner", "staff"),
+    invoiceController.getDues
+);
+
 // ── Create single invoice manually — owner and staff ───────────────────
 // POST /api/hostels/:hostelId/invoices
 router.post(
@@ -39,6 +54,14 @@ router.get(
     authorize("owner", "staff"),
     invoiceController.getInvoices
 );
+
+// PUT /api/hostels/:hostelId/invoices/:id/waive
+// Must be BELOW /dues routes to avoid "waive" matching as :id
+router.put(
+    "/:id/waive",
+    authorize("owner"),
+    invoiceController.waiveInvoice
+);  
 
 // ── Single invoice — owner and staff ───────────────────────────────────
 // GET /api/hostels/:hostelId/invoices/:id

@@ -13,3 +13,8 @@ export const fetchMyRoom = async () => {
 	const res = await api.get("/api/portal/my-room");
 	return res.data; // { room, bedGrid, yourBed, roommates, hostel }
 };
+
+export const fetchMyInvoices = async () => {
+    const res = await api.get("/api/portal/my-invoices");
+    return res.data; // { invoices, summary }
+};

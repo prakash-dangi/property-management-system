@@ -17,6 +17,7 @@ import TenantInvoices from "../pages/TenantPortal/TenantInvoices";
 import TenantComplaints from "../pages/TenantPortal/TenantComplaints";
 import TenantNotices from "../pages/TenantPortal/TenantNotices";
 import RoomDetail from "../pages/Rooms/RoomDetail";
+import InvoiceList from "../pages/Billing/InvoiceList";
 
 export default function AppRoutes() {
 	return (
@@ -46,6 +47,7 @@ export default function AppRoutes() {
 					<Route index element={<Dashboard />} />
 					<Route path="rooms" element={<RoomList />} />
 					<Route path="tenants" element={<TenantList />} />
+					<Route path="billing" element={<InvoiceList />} />
 					<Route path="tenants/new" element={<TenantForm />} />
 					<Route path="tenants/:id" element={<TenantDetail />} />
 					<Route path="rooms/:id" element={<RoomDetail />} />

@@ -4,13 +4,7 @@ const Tenant   = require("../models/Tenant");
 const Hostel   = require("../models/Hostel");
 const AppError = require("../utils/AppError");
 const generateInvoiceNumber = require("../utils/invoiceNumber");
-
-// Same pattern as room.controller.js
-const verifyHostelOwnership = async (hostelId, userId) => {
-    const hostel = await Hostel.findOne({ _id: hostelId, owner: userId });
-    if (!hostel) throw new AppError("Hostel not found or access denied", 404);
-    return hostel;
-};
+const verifyHostelAccess = require("../utils/verifyHostelAccess");
 
 // --- Helper: compute totalAmount ---
 // Always computed server-side. Never trust a client-sent totalAmount.
@@ -27,7 +21,7 @@ const computeTotal = (rentAmount, extraCharges = [], discount = 0) => {
 
 exports.generateInvoices = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
 
         const { month, year, dueDay = 5, extraCharges = [] } = req.body;
 
@@ -153,7 +147,7 @@ exports.generateInvoices = async (req, res, next) => {
 
 exports.createInvoice = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
 
         const {
             tenantId,
@@ -231,7 +225,7 @@ exports.createInvoice = async (req, res, next) => {
 
 exports.getInvoices = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
 
         const { month, year, status, tenant, page = 1, limit = 20 } = req.query;
 
@@ -275,7 +269,7 @@ exports.getInvoices = async (req, res, next) => {
 
 exports.getInvoiceById = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
 
         const invoice = await Invoice.findOne({
             _id: req.params.id,
@@ -307,7 +301,7 @@ exports.getInvoiceById = async (req, res, next) => {
 
 exports.updateInvoice = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
 
         const invoice = await Invoice.findOne({
             _id: req.params.id,
@@ -373,17 +367,27 @@ exports.updateInvoice = async (req, res, next) => {
 };
 
 // POST /api/hostels/:hostelId/invoices/mark-overdue
-// Updates ALL unpaid invoices past their dueDate to "overdue" in one operation
+// Updates ALL unpaid AND partially_paid invoices past their dueDate to "overdue".
+//
+// Why include partially_paid?
+// A tenant who paid ₹2000 of ₹5000 and missed the due date still owes ₹3000.
+// Keeping them as "partially_paid" hides urgency. "overdue" is the correct
+// status — partial payment does not reset the clock.
+//
+// The paidAmount is preserved. Only status changes.
+// Safe to call multiple times — already-overdue invoices are not re-matched.
 
 exports.markOverdueInvoices = async (req, res, next) => {
     try {
-        await verifyHostelOwnership(req.params.hostelId, req.user._id);
+        await verifyHostelAccess(req.params.hostelId, req.user);
+
+        const now = new Date();
 
         const result = await Invoice.updateMany(
             {
                 hostel: req.params.hostelId,
-                status: "unpaid",
-                dueDate: { $lt: new Date() }
+                status: { $in: ["unpaid", "partially_paid"] },  // both statuses
+                dueDate: { $lt: now }
             },
             { $set: { status: "overdue" } }
         );
@@ -391,6 +395,175 @@ exports.markOverdueInvoices = async (req, res, next) => {
         res.json({
             success: true,
             markedOverdue: result.modifiedCount
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// GET /api/hostels/:hostelId/invoices/dues
+// Returns all unpaid, partially_paid, and overdue invoices for this hostel.
+// Supports: ?tenant= &page= &limit=
+// Sorted: overdue first, then by dueDate ascending (most urgent at top)
+
+exports.getDues = async (req, res, next) => {
+    try {
+        await verifyHostelAccess(req.params.hostelId, req.user);
+
+        const { tenant, page = 1, limit = 20 } = req.query;
+
+        const filter = {
+            hostel: req.params.hostelId,
+            status: { $in: ["unpaid", "partially_paid", "overdue"] }
+        };
+        if (tenant) filter.tenant = tenant;
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        // Custom sort: overdue > partially_paid > unpaid, then by dueDate
+        const statusOrder = { overdue: 0, partially_paid: 1, unpaid: 2 };
+
+        const [invoices, total] = await Promise.all([
+            Invoice.find(filter)
+                .populate({
+                    path: "tenant",
+                    populate: { path: "user", select: "name phone" }
+                })
+                .populate("room", "roomNumber floor")
+                .sort({ dueDate: 1 }) // most overdue first within same status
+                .skip(skip)
+                .limit(Number(limit)),
+            Invoice.countDocuments(filter)
+        ]);
+
+        // Sort overdue to top (MongoDB can't sort by enum order natively)
+        const sorted = invoices.sort(
+            (a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3)
+        );
+
+        // Compute total outstanding
+        const totalOutstanding = sorted.reduce(
+            (sum, inv) => sum + (inv.totalAmount - inv.paidAmount), 0
+        );
+
+        res.json({
+            success: true,
+            count: sorted.length,
+            total,
+            page: Number(page),
+            pages: Math.ceil(total / Number(limit)),
+            totalOutstanding: Math.round(totalOutstanding * 100) / 100,
+            invoices: sorted
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+// GET /api/hostels/:hostelId/invoices/dues/summary
+// MongoDB aggregation for the dashboard widget.
+// Returns: {
+//   overdue:         { count: N, totalDue: ₹X },
+//   partially_paid:  { count: N, totalDue: ₹X },
+//   unpaid:          { count: N, totalDue: ₹X },
+//   total:           { count: N, totalDue: ₹X }
+// }
+
+exports.getDuesSummary = async (req, res, next) => {
+    try {
+        await verifyHostelAccess(req.params.hostelId, req.user);
+
+        const results = await Invoice.aggregate([
+            {
+                $match: {
+                    hostel: new mongoose.Types.ObjectId(req.params.hostelId),
+                    status: { $in: ["unpaid", "partially_paid", "overdue"] }
+                }
+            },
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 },
+                    // totalDue = sum of (totalAmount - paidAmount) per invoice
+                    totalDue: {
+                        $sum: { $subtract: ["$totalAmount", "$paidAmount"] }
+                    }
+                }
+            }
+        ]);
+
+        // Reshape into a clean object keyed by status
+        const summary = {
+            overdue:        { count: 0, totalDue: 0 },
+            partially_paid: { count: 0, totalDue: 0 },
+            unpaid:         { count: 0, totalDue: 0 }
+        };
+
+        results.forEach(r => {
+            if (summary[r._id] !== undefined) {
+                summary[r._id] = {
+                    count: r.count,
+                    totalDue: Math.round(r.totalDue * 100) / 100
+                };
+            }
+        });
+
+        // Add totals for the dashboard headline number
+        summary.total = {
+            count: results.reduce((s, r) => s + r.count, 0),
+            totalDue: Math.round(
+                results.reduce((s, r) => s + r.totalDue, 0) * 100
+            ) / 100
+        };
+
+        res.json({ success: true, summary });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
+// PUT /api/hostels/:hostelId/invoices/:id/waive
+// Owner can waive any non-paid invoice.
+// This writes off the debt — paidAmount stays unchanged, status → "waived".
+// Waived invoices are excluded from pendingAmount in tenantSummary.js.
+// Requires: { reason } in body (for audit trail in notes)
+
+exports.waiveInvoice = async (req, res, next) => {
+    try {
+        await verifyHostelAccess(req.params.hostelId, req.user);
+
+        const invoice = await Invoice.findOne({
+            _id: req.params.id,
+            hostel: req.params.hostelId
+        });
+
+        if (!invoice) throw new AppError("Invoice not found", 404);
+
+        if (invoice.status === "paid") {
+            throw new AppError("Cannot waive a paid invoice. It has already been settled.", 400);
+        }
+        if (invoice.status === "waived") {
+            throw new AppError("Invoice is already waived", 400);
+        }
+
+        const { reason } = req.body;
+
+        invoice.status = "waived";
+        // Append reason to notes with timestamp for audit trail
+        const waiveNote = `[Waived by owner on ${new Date().toLocaleDateString("en-IN")}` +
+            (reason ? `: ${reason}` : "") + "]";
+        invoice.notes = invoice.notes
+            ? `${invoice.notes}\n${waiveNote}`
+            : waiveNote;
+
+        await invoice.save();
+
+        res.json({
+            success: true,
+            message: "Invoice waived successfully",
+            invoice
         });
     } catch (error) {
         next(error);

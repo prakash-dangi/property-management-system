@@ -9,6 +9,7 @@ const roomRoutes = require("./src/routes/room.routes");
 const hostelRoutes = require("./src/routes/hostel.routes");
 const tenantRoutes = require("./src/routes/tenant.routes");
 const invoiceRoutes = require("./src/routes/invoice.routes");
+const paymentRoutes = require("./src/routes/payment.routes");
 const tenantPortalRoutes = require("./src/routes/tenantPortal.routes");
 
 const errorMiddleware = require("./src/middleware/error.middleware");
@@ -27,7 +28,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/hostels", hostelRoutes);
 app.use("/api/hostels/:hostelId/rooms", roomRoutes);
 app.use("/api/hostels/:hostelId/tenants", tenantRoutes);
-app.use("/api/hostels/:hostelId/invoices", invoiceRoutes)
+app.use("/api/hostels/:hostelId/invoices", invoiceRoutes);
+app.use("/api/hostels/:hostelId/payments", paymentRoutes);
 app.use("/api/portal", tenantPortalRoutes);
 
 app.get("/", (req, res) => {

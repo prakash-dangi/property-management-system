@@ -2,21 +2,7 @@ const Room = require("../models/Room");
 const Tenant = require("../models/Tenant");
 const Hostel = require("../models/Hostel");
 const AppError = require("../utils/AppError");
-
-// Confirms the user owns the hostel in the URL
-// Returns the hostel document if valid, throws AppError if not.
-const verifyHostelOwnership = async (hostelId, userId) => {
-	const hostel = await Hostel.findOne({
-		_id: hostelId,
-		owner: userId
-	});
-
-	if (!hostel) {
-		throw new AppError("Hostel not found or you do not own this hostel", 404);
-	}
-
-	return hostel;
-};
+const verifyHostelAccess = require("../utils/verifyHostelAccess");
 
 // Create Room
 // POST /api/hostels/:hostelId/rooms
@@ -24,7 +10,7 @@ const verifyHostelOwnership = async (hostelId, userId) => {
 // status is forced to "available" on creation
 const createRoom = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const room = await Room.create({
 			...req.body,
@@ -47,7 +33,7 @@ const createRoom = async (req, res, next) => {
 
 const getRooms = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const filter = {
 			hostel: req.params.hostelId
@@ -75,7 +61,7 @@ const getRooms = async (req, res, next) => {
 // GET /api/hostels/:hostelId/rooms/:id
 const getRoomById = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const room = await Room.findOne({
 			_id: req.params.id,
@@ -107,7 +93,7 @@ const getRoomById = async (req, res, next) => {
 // Status transitions are guarded by a state machine
 const updateRoom = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const room = await Room.findOne({
 			_id: req.params.id,
@@ -156,7 +142,7 @@ const updateRoom = async (req, res, next) => {
 // Only if: status === "available" AND no active tenants.
 const deleteRoom = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const room = await Room.findOne({
 			_id: req.params.id,
@@ -196,7 +182,7 @@ const deleteRoom = async (req, res, next) => {
 // returns a dashboard summary of this hostel
 const getRoomStats = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const hostelId = req.params.hostelId;
 
@@ -221,7 +207,7 @@ const getRoomStats = async (req, res, next) => {
 // Returns capacity, how many beds are taken, which beds are free
 const getRoomAvailability = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 		const room = await Room.findOne({
 			_id: req.params.id,
 			hostel: req.params.hostelId
@@ -266,7 +252,7 @@ const getRoomAvailability = async (req, res, next) => {
 
 const getRoomHistory = async (req, res, next) => {
 	try {
-		await verifyHostelOwnership(req.params.hostelId, req.user._id);
+		await verifyHostelAccess(req.params.hostelId, req.user);
 
 		const room = await Room.findOne({
 			_id: req.params.id,

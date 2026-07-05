@@ -59,7 +59,7 @@ export default function AdminLayout() {
 						Tenants
 					</Link>
 
-					<Link to="/billing">
+					<Link to="/dashboard/billing">
 						Billing
 					</Link>
 
