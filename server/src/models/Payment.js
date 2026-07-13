@@ -30,7 +30,7 @@ const paymentSchema = new mongoose.Schema(
 
         method: {
             type: String,
-            enum: ["cash", "upi", "bank_transfer", "cheque", "online"],
+            enum: ["cash", "upi", "bank_transfer", "cheque", "online", "razorpay"],
             required: true
         },
 
@@ -61,6 +61,21 @@ const paymentSchema = new mongoose.Schema(
         notes: {
             type: String,
             trim: true
+        },
+
+        // Razorpay-specific fields — only present when method === "razorpay"
+        razorpayPaymentId: {
+            type: String    // e.g. "pay_PjcDjPBB5678"
+        },
+
+        razorpayOrderId: {
+            type: String    // e.g. "order_PjcDjPBB1234" — cross-reference to RazorpayOrder 
+        },
+
+        // Razorpay's signature returned in payment.captured event.
+        // Stored for audit — proves this payment was verified server-side.
+        razorpaySignature: {
+            type: String
         },
 
         // ── Reversal / void tracking ─────────────────────────────────────

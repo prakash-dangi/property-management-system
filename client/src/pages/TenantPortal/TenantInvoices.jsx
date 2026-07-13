@@ -1,19 +1,20 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { fetchMyInvoices } from "../../api/tenantPortalApi";
+import RazorpayPayButton from "../../components/RazorpayPayButton";
 
-const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const STATUS_STYLES = {
-    paid:           "bg-green-100 text-green-700",
-    unpaid:         "bg-gray-100 text-gray-600",
-    overdue:        "bg-red-100 text-red-700",
+    paid: "bg-green-100 text-green-700",
+    unpaid: "bg-gray-100 text-gray-600",
+    overdue: "bg-red-100 text-red-700",
     partially_paid: "bg-yellow-100 text-yellow-700",
-    waived:         "bg-blue-50 text-blue-500",
+    waived: "bg-blue-50 text-blue-500",
 };
 
 export default function TenantInvoices() {
-    const [data, setData]       = useState(null);
+    const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [expanded, setExpanded] = useState(null); // expanded invoice _id
 
@@ -32,7 +33,7 @@ export default function TenantInvoices() {
     }, []);
 
     if (loading) return <div className="text-center py-16 text-gray-400">Loading invoices...</div>;
-    if (!data)   return null;
+    if (!data) return null;
 
     const { invoices, summary } = data;
 
@@ -122,6 +123,23 @@ export default function TenantInvoices() {
                                             <div className="flex justify-between text-red-600 font-semibold">
                                                 <span>Remaining</span>
                                                 <span>₹{(inv.totalAmount - inv.paidAmount).toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {!["paid", "waived"].includes(inv.status) && (
+                                            <div className="pt-3 border-t border-gray-100">
+                                                <RazorpayPayButton
+                                                    invoice={inv}
+                                                    onSuccess={({ invoice: updated }) => {
+                                                        // Refetch the full invoice list to show updated status
+                                                        // The simplest approach: reload the data
+                                                        setData(null);
+                                                        setLoading(true);
+                                                        fetchMyInvoices()
+                                                            .then(result => setData(result))
+                                                            .catch(() => toast.error("Failed to refresh invoices"))
+                                                            .finally(() => setLoading(false));
+                                                    }}
+                                                />
                                             </div>
                                         )}
                                     </div>

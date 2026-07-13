@@ -12,6 +12,9 @@ const invoiceRoutes = require("./src/routes/invoice.routes");
 const paymentRoutes = require("./src/routes/payment.routes");
 const tenantPortalRoutes = require("./src/routes/tenantPortal.routes");
 
+const razorpayPortalRoutes = require("./src/routes/razorpay.routes");
+const webhookRoutes        = require("./src/routes/webhook.routes");
+
 const errorMiddleware = require("./src/middleware/error.middleware");
 
 const connect = require("./src/config/db");
@@ -21,6 +24,7 @@ connect();
 const app = express();
 
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use("/api/webhooks", webhookRoutes);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -31,6 +35,7 @@ app.use("/api/hostels/:hostelId/tenants", tenantRoutes);
 app.use("/api/hostels/:hostelId/invoices", invoiceRoutes);
 app.use("/api/hostels/:hostelId/payments", paymentRoutes);
 app.use("/api/portal", tenantPortalRoutes);
+app.use("/api/portal/razorpay", razorpayPortalRoutes);
 
 app.get("/", (req, res) => {
     res.send("Server Running");
